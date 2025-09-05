@@ -6,6 +6,9 @@ import { createBrowserRouter, RouterProvider } from 'react-router-dom';
 import FeedPage from './pages/FeedPage.jsx';
 import SignUpPage from './pages/SignUpPage.jsx';
 
+import LoginPage from './pages/LoginPage.jsx';
+
+
 import './index.css'; // Your global styles
 
 // Define the routes for your application
@@ -20,6 +23,12 @@ const router = createBrowserRouter([
     path: "/signup",
     element: <SignUpPage />,
   },
+  {
+    // When the user visits '/login', show the LoginPage
+    path: "/login",
+    element: <LoginPage />,
+  },
+
 ]);
 
 // Render the application with the configured router
