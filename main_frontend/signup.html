@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Sign Up</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div class="container">
+    <div id="signupSection">
+        <h2>Create Your Account</h2>
+        <form id="signupForm">
+            <div class="form-group"><label for="signupUsername">Username:</label><input type="text" id="signupUsername" required></div>
+            <div class="form-group"><label for="signupEmail">Email:</label><input type="email" id="signupEmail" required></div>
+            <div class="form-group"><label for="signupPassword">Password:</label><input type="password" id="signupPassword" required></div>
+            <button type="submit">Get OTP</button>
+        </form>
+    </div>
+
+    <div id="otpSection" style="display: none;">
+        <h2>Verify Your Email</h2>
+        <form id="otpForm">
+            <input type="hidden" id="otpEmail">
+            <div class="form-group"><label for="otpInput">Enter OTP:</label><input type="text" id="otpInput" required></div>
+            <button type="submit">Verify OTP</button>
+        </form>
+    </div>
+
+    <div id="interestSection" style="display: none;">
+        <h2>Select Your Interests</h2>
+        <form id="interestForm">
+            <div class="interests-container">
+                <div class="interest-tag"><input type="checkbox" id="coding" name="interests" value="coding"><label for="coding">Coding</label></div>
+                <div class="interest-tag"><input type="checkbox" id="travel" name="interests" value="travel"><label for="travel">Travel</label></div>
+                <div class="interest-tag"><input type="checkbox" id="music" name="interests" value="music"><label for="music">Music</label></div>
+            </div>
+            <button type="submit">Complete Signup</button>
+        </form>
+    </div>
+    <div id="message"></div>
+</div>
+<script src="signup.js"></script>
+</body>
+</html>
