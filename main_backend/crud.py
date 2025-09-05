@@ -1,6 +1,6 @@
 from sqlalchemy.orm import Session
 from sqlalchemy import and_
-from . import models, schemas, auth
+import models, schemas, auth
 from datetime import datetime, timedelta, timezone
 from typing import List, Optional
 

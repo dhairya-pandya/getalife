@@ -17,9 +17,9 @@ class SummaryResponse(BaseModel):
       summary:str
 
 class EmbeddingRequest(BaseModel):
-      status:str;
-      content_id=str;
-      text:str
+      content_id: str
+      text: str
+
 
 class EmbeddingResponse(BaseModel):
       status: str

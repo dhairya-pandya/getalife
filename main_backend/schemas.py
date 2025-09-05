@@ -53,3 +53,34 @@ class InterestResponse(BaseModel):
     
     class Config:
         from_attributes = True
+
+# ML Service Integration Schemas
+class MLAnalysisRequest(BaseModel):
+    text: str
+
+class MLAnalysisResponse(BaseModel):
+    label: str
+    score: float
+
+class MLSummaryRequest(BaseModel):
+    text: str
+    max_length: int = 1500
+    min_length: int = 10
+
+class MLSummaryResponse(BaseModel):
+    summary: str
+
+class MLEmbeddingRequest(BaseModel):
+    content_id: str
+    text: str
+
+class MLEmbeddingResponse(BaseModel):
+    status: str
+    content_id: str
+
+class MLSearchRequest(BaseModel):
+    query: str
+    top_k: int = 7
+
+class MLSearchResponse(BaseModel):
+    content_ids: List[str]

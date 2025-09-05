@@ -5,6 +5,7 @@ from sqlalchemy.orm import Session
 from typing import List
 import crud, models, schemas, auth
 from database import SessionLocal, engine, get_db
+from ml_client import ml_client
 
 ML_SERVICE_URL = "http://ml_service:8000"
 models.Base.metadata.create_all(bind=engine)
@@ -140,6 +141,76 @@ async def login(login_data: schemas.LoginRequest, db: Session = Depends(get_db))
 @app.get("/health")
 async def health_check():
     return {"status": "healthy"}
+
+# ML Service Integration Endpoints
+@app.get("/ml/health")
+async def ml_health_check():
+    """Check ML service health"""
+    is_healthy = await ml_client.health_check()
+    if is_healthy:
+        return {"status": "ML service is healthy"}
+    else:
+        raise HTTPException(status_code=503, detail="ML service is unavailable")
+
+@app.post("/ml/analyze", response_model=schemas.MLAnalysisResponse)
+async def analyze_text(request: schemas.MLAnalysisRequest):
+    """Analyze text for toxicity/sentiment using ML service"""
+    result = await ml_client.analyze_text(request)
+    if result is None:
+        raise HTTPException(status_code=503, detail="ML analysis service unavailable")
+    return result
+
+@app.post("/ml/summarize", response_model=schemas.MLSummaryResponse)
+async def summarize_text(request: schemas.MLSummaryRequest):
+    """Summarize text using ML service"""
+    result = await ml_client.summarize_text(request)
+    if result is None:
+        raise HTTPException(status_code=503, detail="ML summarization service unavailable")
+    return result
+
+@app.post("/ml/embed", response_model=schemas.MLEmbeddingResponse)
+async def create_embedding(request: schemas.MLEmbeddingRequest):
+    """Create and store text embedding using ML service"""
+    result = await ml_client.create_embedding(request)
+    if result is None:
+        raise HTTPException(status_code=503, detail="ML embedding service unavailable")
+    return result
+
+@app.post("/ml/search", response_model=schemas.MLSearchResponse)
+async def search_similar_content(request: schemas.MLSearchRequest):
+    """Search for similar content using ML service"""
+    result = await ml_client.search_similar(request)
+    if result is None:
+        raise HTTPException(status_code=503, detail="ML search service unavailable")
+    return result
+
+# Enhanced user endpoints with ML integration
+@app.get("/users/{user_id}/recommendations")
+async def get_user_recommendations(user_id: int, query: str, top_k: int = 5, db: Session = Depends(get_db)):
+    """Get content recommendations for a user based on their interests"""
+    user = crud.get_user(db, user_id)
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    
+    # Get user interests
+    interest_names = [interest.name for interest in user.interests]
+    
+    # Create search query combining user interests and custom query
+    search_query = f"{' '.join(interest_names)} {query}"
+    
+    # Search for similar content using ML service
+    search_request = schemas.MLSearchRequest(query=search_query, top_k=top_k)
+    search_result = await ml_client.search_similar(search_request)
+    
+    if search_result is None:
+        raise HTTPException(status_code=503, detail="Recommendation service unavailable")
+    
+    return {
+        "user_id": user_id,
+        "interests": interest_names,
+        "query": query,
+        "recommendations": search_result.content_ids
+    }
 
 if __name__ == "__main__":
     import uvicorn
