@@ -56,16 +56,50 @@ def add_user_interests(db: Session, user_id: int, interest_names: List[str]):
     db.commit()
     return user
 
-# Signup verification CRUD operations
-def create_signup_verification(db: Session, email: str, username: str, password_hash: str, otp_hash: str, expires_at: datetime):
-    verification = models.SignupVerification(
-        email=email,
-        username=username,
-        password_hash=password_hash,
-        otp_hash=otp_hash,
-        expires_at=expires_at
+def create_user_from_verification(db: Session, verification: models.SignupVerification):
+    """
+    Create a new user from a verified signup verification entry.
+    """
+    # Create new user from verification data (simplified to match your existing User model)
+    db_user = models.User(
+        email=verification.email,
+        username=verification.username,
+        hashed_password=verification.password_hash  # Using hashed_password to match your existing User model
     )
-    db.add(verification)
+    
+    # Add and commit the new user
+    db.add(db_user)
+    db.commit()
+    db.refresh(db_user)
+    
+    # Delete the verification entry after successful user creation
+    db.delete(verification)
+    db.commit()
+    
+    return db_user
+
+# Signup verification CRUD operations
+def create_or_update_signup_verification(db: Session, email: str, username: str, password_hash: str, otp_hash: str, expires_at: datetime):
+    verification = get_signup_verification(db, email)
+    if verification:
+        # Update existing entry if user tries to sign up again
+        verification.username = username
+        verification.password_hash = password_hash
+        verification.otp_hash = otp_hash
+        verification.expires_at = expires_at
+        verification.failed_attempts = 0 # Reset attempts
+    else:
+        # Create a new entry for a new signup attempt
+        verification = models.SignupVerification(
+            email=email,
+            username=username,
+            password_hash=password_hash,
+            otp_hash=otp_hash,
+            expires_at=expires_at,
+            failed_attempts=0
+        )
+        db.add(verification)
+    
     db.commit()
     db.refresh(verification)
     return verification

@@ -201,7 +201,7 @@ const InterestSelection = ({ onSubmit, isSubmitting, error }) => {
             Creating Account...
           </>
         ) : (
-          `Finish ${selectedInterests.length > 0 ? `(${selectedInterests.length})` : ''}`
+          `Finish ${selectedInterests.length > 0 ? (${selectedInterests.length}) : ''}`
         )}
       </button>
       {selectedInterests.length < 3 && 
@@ -302,4 +302,3 @@ function SignUpPage() {
 }
 
 export default SignUpPage;
-

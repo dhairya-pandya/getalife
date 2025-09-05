@@ -5,7 +5,9 @@ import { createBrowserRouter, RouterProvider } from 'react-router-dom';
 // Import your page components from their new location in the 'pages' folder
 import FeedPage from './pages/FeedPage.jsx';
 import SignUpPage from './pages/SignUpPage.jsx';
+
 import LoginPage from './pages/LoginPage.jsx';
+
 
 import './index.css'; // Your global styles
 
@@ -26,6 +28,7 @@ const router = createBrowserRouter([
     path: "/login",
     element: <LoginPage />,
   },
+
 ]);
 
 // Render the application with the configured router
