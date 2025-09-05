@@ -1,2 +1,2 @@
-# getalife
+# getalife();
 Let the Game Begin!

@@ -20,6 +20,7 @@ class EmbeddingRequest(BaseModel):
       content_id: str
       text: str
 
+
 class EmbeddingResponse(BaseModel):
       status: str
       content_id: str
