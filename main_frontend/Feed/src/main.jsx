@@ -7,7 +7,7 @@ import FeedPage from './pages/FeedPage.jsx';
 import SignUpPage from './pages/SignUpPage.jsx';
 
 import LoginPage from './pages/LoginPage.jsx';
-
+import UserProfile from './pages/UserProfile.jsx';
 
 import './index.css'; // Your global styles
 
@@ -27,6 +27,10 @@ const router = createBrowserRouter([
     // When the user visits '/login', show the LoginPage
     path: "/login",
     element: <LoginPage />,
+  },
+  {
+    path: "/Userprofile",
+    element: <UserProfile />,
   },
 
 ]);
