@@ -1,7 +1,9 @@
 import React, { useState } from 'react';
+import { useNavigate } from 'react-router-dom'; // Import useNavigate
 import apiService from '../services/api';
 
 function LoginPage() {
+  const navigate = useNavigate(); 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -22,9 +24,8 @@ function LoginPage() {
         localStorage.setItem('user', JSON.stringify(response.user));
         
         // Redirect to feed page on success
-        window.location.href = '/';
+        navigate('/'); // <-- 3. Use navigate for a smooth transition
       } else {
-        // Handle cases where the token might be missing in the response
         throw new Error("Login response was invalid.");
       }
 

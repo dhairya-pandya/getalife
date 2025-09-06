@@ -1,4 +1,6 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { useParams, useNavigate } from 'react-router-dom';
+import apiService from '../services/api';
 import { Home, Compass, Plus, Search, Bell, ChevronDown, ArrowLeft, ArrowUp, ArrowDown, MessageSquare, Share2, Award, ThumbsUp, MoreHorizontal } from 'lucide-react';
 
 // --- MOCK DATA FOR A SINGLE POST ---
@@ -252,9 +254,47 @@ const CommentSection = ({ post, onCommentUpdate, user }) => {
 
 // --- MAIN VIEW POST PAGE COMPONENT ---
 export default function ViewPostPage() {
-  const [post, setPost] = useState(postData);
-  const user = { username: 'DemoUser' }; // Mock user
+  const { postId } = useParams(); // Get the post ID from the URL
+  const navigate = useNavigate();
+  const [post, setPost] = useState(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const user = apiService.getCurrentUser();
 
+  useEffect(() => {
+    const fetchPost = async () => {
+      try {
+        setIsLoading(true);
+        // --- KEY CHANGE: Fetch a single post by its ID ---
+        const fetchedPost = await apiService.request(`/posts/${postId}`);
+        setPost(fetchedPost);
+      } catch (error) {
+        console.error("Failed to fetch post:", error);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    fetchPost();
+  }, [postId]);
+
+  const handleAddComment = async (text, parentId = null) => {
+    try {
+      const newComment = await apiService.createComment(post.id, { content: text }, parentId);
+      // Add the new comment to the post's state to update the UI instantly
+      setPost(prevPost => ({
+          ...prevPost,
+          comments: [...prevPost.comments, newComment],
+          commentsCount: prevPost.commentsCount + 1,
+      }));
+    } catch (error) {
+        console.error("Failed to post comment:", error);
+        alert("Error: " + error.message);
+    }
+  };
+
+  if (isLoading) return <div className="text-white text-center p-10">Loading post...</div>;
+  if (!post) return <div className="text-white text-center p-10">Post not found.</div>;
+
+  
   return (
     <div className="bg-[#030303] text-gray-300 font-sans min-h-screen">
       <Header />

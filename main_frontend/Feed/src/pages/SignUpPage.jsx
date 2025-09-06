@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { useNavigate } from 'react-router-dom'; // Import useNavigate
 import apiService from '../services/api';
 
 // --- Helper Data ---
@@ -219,6 +220,7 @@ const InterestSelection = ({ onSubmit, isSubmitting, error }) => {
 
 // --- Main Page Component to manage the signup flow ---
 function SignUpPage() {
+  const navigate = useNavigate(); // Initialize navigate
   const [step, setStep] = useState(1);
   const [userData, setUserData] = useState(null);
   const [otpError, setOtpError] = useState('');
@@ -269,8 +271,8 @@ function SignUpPage() {
     try {
       const response = await apiService.signupComplete(userData.email, interests);
       console.log("Signup completed successfully:", response);
-      alert("Signup complete! Redirecting to the feed...");
-      window.location.assign('/'); // Redirect to the feed page
+      alert("Signup complete! Please log in.");
+      navigate('/login'); // KEY CHANGE: Redirect to login page
     } catch (error) {
       console.error("Signup completion failed:", error);
       setError(error.message || 'Failed to complete signup. Please try again.');
