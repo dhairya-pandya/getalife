@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, Boolean, DateTime, ForeignKey, Table
+from sqlalchemy import Column, Integer, String, Boolean, DateTime, ForeignKey, Table, Float
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 from database import Base
@@ -45,3 +45,38 @@ class SignupVerification(Base):
     expires_at = Column(DateTime(timezone=True), nullable=False)
     failed_attempts = Column(Integer, default=0)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+class Post(Base):
+    __tablename__ = "posts"
+    id = Column(Integer, primary_key=True, index=True)
+    author_id = Column(Integer, ForeignKey("users.id"))
+    community_id = Column(Integer, ForeignKey("communities.id"), nullable=True) # Assuming you have a communities table
+    title = Column(String, nullable=False)
+    content = Column(String, nullable=False)
+    sentiment = Column(String, default='neutral')
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    upvotes = Column(Integer, default=0)
+    downvotes = Column(Integer, default=0)
+    numberofcomments = Column(Integer, default=0) # Note: 'numberofcomments' is unconventional, 'comment_count' is more standard
+
+    author = relationship("User")
+    comments = relationship("Comment", back_populates="post", cascade="all, delete-orphan")
+
+class Comment(Base):
+    __tablename__ = "comments"
+    id = Column(Integer, primary_key=True, index=True)
+    post_id = Column(Integer, ForeignKey("posts.id"))
+    author_id = Column(Integer, ForeignKey("users.id"))
+    parent_comment_id = Column(Integer, ForeignKey("comments.id"), nullable=True)
+    content = Column(String, nullable=False)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    toxicity_score = Column(Float, default=0.0)
+    sentiment = Column(String, default='neutral')
+    is_flagged = Column(Boolean, default=False)
+    upvotes = Column(Integer, default=0)
+    downvotes = Column(Integer, default=0)
+
+    author = relationship("User")
+    post = relationship("Post", back_populates="comments")
+    replies = relationship("Comment", back_populates="parent_comment", remote_side=[id])
+    parent_comment = relationship("Comment", back_populates="replies", remote_side=[parent_comment_id])

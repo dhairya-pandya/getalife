@@ -16,11 +16,18 @@ function LoginPage() {
       const response = await apiService.login(email, password);
       console.log("Login successful:", response);
       
-      // Store user data in localStorage for session management
-      localStorage.setItem('user', JSON.stringify(response.user));
-      
-      // Redirect to feed
-      window.location.assign('/');
+      // --- KEY CHANGE: Store the JWT and user data ---
+      if (response.access_token && response.user) {
+        localStorage.setItem('token', response.access_token);
+        localStorage.setItem('user', JSON.stringify(response.user));
+        
+        // Redirect to feed page on success
+        window.location.href = '/';
+      } else {
+        // Handle cases where the token might be missing in the response
+        throw new Error("Login response was invalid.");
+      }
+
     } catch (error) {
       console.error("Login failed:", error);
       setError(error.message || 'Login failed. Please check your credentials.');

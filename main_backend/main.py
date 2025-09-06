@@ -1,12 +1,16 @@
-
 import random
 from datetime import datetime, timedelta, timezone
 from fastapi import Depends, HTTPException, FastAPI
-from fastapi.middleware.cors import CORSMiddleware  # <-- ADD THIS IMPORT
+from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
+from typing import List, Optional, Annotated
+from fastapi.security import OAuth2PasswordBearer
+from jose import JWTError, jwt
+
+# Import your other modules
 import crud, models, schemas, auth
 from database import SessionLocal, engine
-
+from ml_client import ml_client
 
 # This line creates your database tables if they don't exist
 models.Base.metadata.create_all(bind=engine)
@@ -14,15 +18,16 @@ models.Base.metadata.create_all(bind=engine)
 # --- CREATE THE APP INSTANCE HERE ---
 app = FastAPI()
 
+# --- ADD CORS MIDDLEWARE ---
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # Allows all origins (for development)
+    allow_origins=["*"],
     allow_credentials=True,
-    allow_methods=["*"],  # Allows all methods (GET, POST, etc.)
-    allow_headers=["*"],  # Allows all headers
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
 
-# Dependency to get a database session
+# --- DATABASE DEPENDENCY ---
 def get_db():
     db = SessionLocal()
     try:
@@ -30,7 +35,28 @@ def get_db():
     finally:
         db.close()
 
-## --- AUTHENTICATION ROUTES --- ##
+# --- JWT AND SECURITY SETUP ---
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="login")
+
+def get_current_user(token: Annotated[str, Depends(oauth2_scheme)], db: Session = Depends(get_db)):
+    credentials_exception = HTTPException(
+        status_code=401,
+        detail="Could not validate credentials",
+        headers={"WWW-Authenticate": "Bearer"},
+    )
+    try:
+        payload = jwt.decode(token, auth.SECRET_KEY, algorithms=[auth.ALGORITHM])
+        username: str = payload.get("sub")
+        if username is None:
+            raise credentials_exception
+    except JWTError:
+        raise credentials_exception
+    user = crud.get_user_by_username(db, username=username)
+    if user is None:
+        raise credentials_exception
+    return user
+
+# --- AUTHENTICATION ROUTES ---
 
 @app.post("/signup/start", status_code=200)
 def signup_start(user_data: schemas.SignupStart, db: Session = Depends(get_db)):
@@ -40,20 +66,15 @@ def signup_start(user_data: schemas.SignupStart, db: Session = Depends(get_db)):
         raise HTTPException(status_code=400, detail="Username already taken")
 
     otp = str(random.randint(100000, 999999))
-    print(f"Generated OTP for {user_data.email}: {otp}") # For testing
+    print(f"Generated OTP for {user_data.email}: {otp}")
 
     password_hash = auth.get_password_hash(user_data.password)
     otp_hash = auth.get_password_hash(otp)
     expires_at = datetime.now(timezone.utc) + timedelta(minutes=10)
 
-    # Use a CRUD function to create/update the verification entry
     crud.create_or_update_signup_verification(
-        db, 
-        email=user_data.email, 
-        username=user_data.username, 
-        password_hash=password_hash, 
-        otp_hash=otp_hash, 
-        expires_at=expires_at
+        db, email=user_data.email, username=user_data.username,
+        password_hash=password_hash, otp_hash=otp_hash, expires_at=expires_at
     )
     
     email_sent = auth.send_otp_email(user_data.email, otp)
@@ -74,10 +95,12 @@ def verify_otp(otp_data: schemas.OTPVerify, db: Session = Depends(get_db)):
         raise HTTPException(status_code=400, detail="OTP has expired. Please sign up again.")
 
     if not auth.verify_password(otp_data.otp, verification_entry.otp_hash):
-        crud.increment_failed_attempts(db, email=otp_data.email)
-        if verification_entry.failed_attempts + 1 >= 5:
-             crud.delete_signup_verification(db, email=otp_data.email)
-             raise HTTPException(status_code=401, detail="Too many failed attempts. Please sign up again.")
+        current_attempts = verification_entry.failed_attempts + 1
+        crud.update_signup_verification_attempts(db, email=otp_data.email, attempts=current_attempts)
+        
+        if current_attempts >= 5:
+            crud.delete_signup_verification(db, email=otp_data.email)
+            raise HTTPException(status_code=401, detail="Too many failed attempts. Please sign up again.")
         raise HTTPException(status_code=401, detail="Invalid OTP.")
 
     return {"message": "OTP verified successfully. Please select your interests."}
@@ -87,25 +110,156 @@ def signup_complete(completion_data: schemas.SignupComplete, db: Session = Depen
     verification_entry = crud.get_signup_verification(db, email=completion_data.email)
     if not verification_entry:
         raise HTTPException(status_code=404, detail="Verification data not found. Please start over.")
-
-    # Create the user using the temporary data
     new_user = crud.create_user_from_verification(db, verification_entry)
-    
-    # Add interests
     crud.add_user_interests(db, user_id=new_user.id, interest_names=completion_data.interests)
-    
-    # Clean up
-    crud.delete_signup_verification(db, email=completion_data.email)
-    
-    # We need to refresh the user object to load the new interests relationship
     db.refresh(new_user)
+    return new_user
+
+@app.post("/login", response_model=schemas.Token)
+def login(login_data: schemas.LoginRequest, db: Session = Depends(get_db)):
+    user = crud.get_user_by_email(db, email=login_data.email)
+    if not user or not auth.verify_password(login_data.password, user.hashed_password):
+        raise HTTPException(status_code=401, detail="Incorrect email or password")
     
-    # Manually create the response to include interests
-    user_response = schemas.UserResponse(
-        id=new_user.id,
-        username=new_user.username,
-        email=new_user.email,
-        interests=[interest.name for interest in new_user.interests],
-        created_at=new_user.created_at
+    access_token = auth.create_access_token(data={"sub": user.username})
+    user_response = schemas.UserResponse.from_orm(user) # Pydantic v2 can handle this with from_attributes
+    return {"access_token": access_token, "token_type": "bearer", "user": user_response}
+
+# --- POSTS & COMMENTS ROUTES ---
+
+@app.post("/posts/", response_model=schemas.PostResponse)
+def create_new_post(
+    post: schemas.PostCreate,
+    current_user: Annotated[models.User, Depends(get_current_user)],
+    db: Session = Depends(get_db)
+):
+    return crud.create_post(db=db, post=post, author_id=current_user.id)
+
+@app.get("/posts/", response_model=List[schemas.PostResponse])
+def read_posts(skip: int = 0, limit: int = 25, db: Session = Depends(get_db)):
+    posts = crud.get_posts(db, skip=skip, limit=limit)
+    return posts
+
+@app.get("/posts/{post_id}", response_model=schemas.PostResponse)
+def read_post(post_id: int, db: Session = Depends(get_db)):
+    db_post = crud.get_post(db, post_id=post_id)
+    if db_post is None:
+        raise HTTPException(status_code=404, detail="Post not found")
+    return db_post
+
+@app.post("/posts/{post_id}/comments/", response_model=schemas.CommentResponse)
+def create_new_comment(
+    post_id: int,
+    comment: schemas.CommentCreate,
+    current_user: Annotated[models.User, Depends(get_current_user)],
+    parent_id: Optional[int] = None,
+    db: Session = Depends(get_db)
+):
+    return crud.create_comment(
+        db=db, comment=comment, post_id=post_id,
+        author_id=current_user.id, parent_comment_id=parent_id
     )
-    return user_response
+
+# --- NEW: Community Routes ---
+@app.post("/communities/", response_model=schemas.CommunityResponse)
+def create_new_community(
+    community: schemas.CommunityCreate,
+    current_user: Annotated[models.User, Depends(get_current_user)],
+    db: Session = Depends(get_db)
+):
+    db_community = crud.get_community_by_name(db, name=community.name)
+    if db_community:
+        raise HTTPException(status_code=400, detail="Community with this name already exists")
+    return crud.create_community(db=db, community=community, creator_id=current_user.id)
+
+@app.get("/communities/", response_model=List[schemas.CommunityResponse])
+def read_communities(skip: int = 0, limit: int = 100, db: Session = Depends(get_db)):
+    communities = crud.get_communities(db, skip=skip, limit=limit)
+    return communities
+
+@app.get("/communities/{community_id}/posts", response_model=List[schemas.PostResponse])
+def read_posts_from_community(community_id: int, skip: int = 0, limit: int = 25, db: Session = Depends(get_db)):
+    posts = crud.get_posts_by_community(db, community_id=community_id, skip=skip, limit=limit)
+    return posts
+
+# --- ML Service Integration & Health Check ---
+@app.get("/health")
+async def health_check():
+    return {"status": "healthy"}
+
+
+# ML Service Integration Endpoints
+@app.get("/ml/health")
+async def ml_health_check():
+    """Check ML service health"""
+    is_healthy = await ml_client.health_check()
+    if is_healthy:
+        return {"status": "ML service is healthy"}
+    else:
+        raise HTTPException(status_code=503, detail="ML service is unavailable")
+
+@app.post("/ml/analyze", response_model=schemas.MLAnalysisResponse)
+async def analyze_text(request: schemas.MLAnalysisRequest):
+    """Analyze text for toxicity/sentiment using ML service"""
+    result = await ml_client.analyze_text(request)
+    if result is None:
+        raise HTTPException(status_code=503, detail="ML analysis service unavailable")
+    return result
+
+@app.post("/ml/summarize", response_model=schemas.MLSummaryResponse)
+async def summarize_text(request: schemas.MLSummaryRequest):
+    """Summarize text using ML service"""
+    result = await ml_client.summarize_text(request)
+    if result is None:
+        raise HTTPException(status_code=503, detail="ML summarization service unavailable")
+    return result
+
+@app.post("/ml/embed", response_model=schemas.MLEmbeddingResponse)
+async def create_embedding(request: schemas.MLEmbeddingRequest):
+    """Create and store text embedding using ML service"""
+    result = await ml_client.create_embedding(request)
+    if result is None:
+        raise HTTPException(status_code=503, detail="ML embedding service unavailable")
+    return result
+
+@app.post("/ml/search", response_model=schemas.MLSearchResponse)
+async def search_similar_content(request: schemas.MLSearchRequest):
+    """Search for similar content using ML service"""
+    result = await ml_client.search_similar(request)
+    if result is None:
+        raise HTTPException(status_code=503, detail="ML search service unavailable")
+    return result
+
+@app.post("/ml/emotions", response_model=schemas.MLEmotionResponse)
+async def analyze_emotions(request: schemas.MLEmotionRequest):
+    """Analyze emotions in text using ML service"""
+    result = await ml_client.analyze_emotions(request)
+    if result is None:
+        raise HTTPException(status_code=503, detail="ML emotion analysis service unavailable")
+    return result
+# Add this to main.py, inside the AUTHENTICATION ROUTES section
+
+@app.post("/login", response_model=schemas.Token)
+def login(login_data: schemas.LoginRequest, db: Session = Depends(get_db)):
+    user = crud.get_user_by_email(db, email=login_data.email)
+    if not user or not auth.verify_password(login_data.password, user.hashed_password):
+        raise HTTPException(status_code=401, detail="Incorrect email or password")
+    
+    access_token = auth.create_access_token(data={"sub": user.username})
+
+    # --- KEY CHANGE: Manually build the user response ---
+    user_response = schemas.UserResponse(
+        id=user.id,
+        username=user.username,
+        email=user.email,
+        # Convert the list of Interest objects to a list of strings
+        interests=[interest.name for interest in user.interests],
+        created_at=user.created_at
+    )
+    
+    return {"access_token": access_token, "token_type": "bearer", "user": user_response}
+
+# Health check endpoint
+@app.get("/health")
+async def health_check():
+    return {"status": "healthy"}

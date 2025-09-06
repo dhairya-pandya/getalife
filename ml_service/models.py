@@ -31,3 +31,10 @@ class SearchRequest(BaseModel):
 
 class SearchResponse(BaseModel):
       content_ids:List[str]
+
+class EmotionRequest(BaseModel):
+      text: str
+      threshold: float = 0.3
+
+class EmotionResponse(BaseModel):
+      emotions: List[dict]

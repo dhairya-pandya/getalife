@@ -33,13 +33,14 @@ class SignupComplete(BaseModel):
     email: EmailStr
     interests: List[str]
 
-# Login schema
+# Login schemas
 class LoginRequest(BaseModel):
     email: EmailStr
     password: str
 
-class LoginResponse(BaseModel):
-    message: str
+class Token(BaseModel):
+    access_token: str
+    token_type: str
     user: UserResponse
 
 # Interest schema
@@ -51,6 +52,47 @@ class InterestResponse(BaseModel):
     name: str
     created_at: datetime
     
+    # --- FIX: Moved Config class inside ---
+    class Config:
+        from_attributes = True
+
+# Post and Comment schemas
+class CommentBase(BaseModel):
+    content: str
+
+class CommentCreate(CommentBase):
+    pass
+
+class CommentResponse(CommentBase):
+    id: int
+    author_id: int
+    post_id: int
+    parent_comment_id: Optional[int] = None
+    created_at: datetime
+    upvotes: int
+    downvotes: int
+    replies: List['CommentResponse'] = []
+
+    # --- FIX: Moved Config class inside ---
+    class Config:
+        from_attributes = True
+
+class PostBase(BaseModel):
+    title: str
+    content: str
+
+class PostCreate(PostBase):
+    pass
+
+class PostResponse(PostBase):
+    id: int
+    author_id: int
+    created_at: datetime
+    upvotes: int
+    downvotes: int
+    numberofcomments: int
+    comments: List[CommentResponse] = []
+
     class Config:
         from_attributes = True
 
@@ -84,3 +126,10 @@ class MLSearchRequest(BaseModel):
 
 class MLSearchResponse(BaseModel):
     content_ids: List[str]
+
+class MLEmotionRequest(BaseModel):
+    text: str
+    threshold: float = 0.3
+
+class MLEmotionResponse(BaseModel):
+    emotions: List[dict]

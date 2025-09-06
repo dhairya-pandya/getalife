@@ -1,7 +1,7 @@
 import chromadb
 from contextlib import asynccontextmanager
 from fastapi import FastAPI, HTTPException
-from ml.loader import load_models, models
+from ml.loader import load_models, models, infer_emotions
 from models import * 
 
 client = chromadb.PersistentClient(path="./chroma_db")
@@ -40,3 +40,11 @@ def search_similar(request: SearchRequest):
     results = collection.query(query_embeddings=[query_embedding], n_results=request.top_k)
     content_ids = [item['content_id'] for item in results['metadatas'][0]]
     return SearchResponse(content_ids=content_ids)
+
+@app.post("/emotions", response_model=EmotionResponse)
+def analyze_emotions(request: EmotionRequest):
+    try:
+        emotions = infer_emotions(request.text, request.threshold)
+        return EmotionResponse(emotions=emotions)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Emotion analysis failed: {str(e)}")

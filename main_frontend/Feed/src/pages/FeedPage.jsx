@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Home, Compass, BarChart2, Eye, Sun, Star, Plus, Search, Bell, ChevronDown, User, ArrowLeft, ArrowUp, ArrowDown, MessageSquare, Share2, MoreHorizontal, Award, ThumbsUp, ChevronsRight, Image as ImageIcon, Link2, Type, Bold, Italic, Strikethrough, AtSign, MessageCircle } from 'lucide-react';
+import apiService from '../services/api';
 
 // #region --- MOCK DATA ---
 const initialPosts = [
@@ -74,7 +75,7 @@ const analyzeSentiment = (title, content) => {
 export default function App() {
   const [page, setPage] = useState({ name: 'home', data: null });
   const [history, setHistory] = useState([{ name: 'home', data: null }]);
-  const [user, setUser] = useState({ username: 'DemoUser' }); // App starts in a logged-in state
+  const [user, setUser] = useState(apiService.getCurrentUser());  // App starts in a logged-in state
   const [posts, setPosts] = useState(initialPosts);
   const [isNotificationsOpen, setIsNotificationsOpen] = useState(false);
   

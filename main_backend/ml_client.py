@@ -73,6 +73,20 @@ class MLServiceClient:
             print(f"ML search failed: {e}")
             return None
     
+    async def analyze_emotions(self, request: schemas.MLEmotionRequest) -> Optional[schemas.MLEmotionResponse]:
+        """Analyze emotions in text"""
+        try:
+            response = await self.client.post(
+                f"{self.base_url}/emotions",
+                json=request.dict()
+            )
+            if response.status_code == 200:
+                return schemas.MLEmotionResponse(**response.json())
+            return None
+        except Exception as e:
+            print(f"ML emotion analysis failed: {e}")
+            return None
+    
     async def close(self):
         """Close the HTTP client"""
         await self.client.aclose()
