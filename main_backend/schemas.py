@@ -71,6 +71,9 @@ class CommentResponse(CommentBase):
     created_at: datetime
     upvotes: int
     downvotes: int
+    dominant_emotion: str = "neutral"
+    emotions: List[dict] = []
+    emotion_confidence: float = 0.0
     replies: List['CommentResponse'] = []
 
     # --- FIX: Moved Config class inside ---
@@ -91,6 +94,9 @@ class PostResponse(PostBase):
     upvotes: int
     downvotes: int
     numberofcomments: int
+    dominant_emotion: str = "neutral"
+    emotions: List[dict] = []
+    emotion_confidence: float = 0.0
     comments: List[CommentResponse] = []
 
     class Config:
@@ -133,3 +139,40 @@ class MLEmotionRequest(BaseModel):
 
 class MLEmotionResponse(BaseModel):
     emotions: List[dict]
+
+# Post and Discussion Emotion Analysis Schemas
+class MLPostEmotionRequest(BaseModel):
+    post_id: str
+    post_content: str
+
+class MLPostEmotionResponse(BaseModel):
+    post_id: str
+    dominant_emotion: str
+    emotions: List[dict]
+    confidence: float
+
+class MLDiscussionEmotionRequest(BaseModel):
+    post_id: str
+    post_content: str
+    comments: List[str]
+
+class MLDiscussionEmotionResponse(BaseModel):
+    post_id: str
+    overall_dominant_emotion: str
+    post_dominant_emotion: str
+    post_emotions: List[dict]
+    comment_emotions: List[dict]
+    emotion_breakdown: dict
+    confidence: float
+    total_analyzed: int
+
+# Semantic Search Schemas
+class MLSemanticSearchRequest(BaseModel):
+    query: str
+    limit: int = 10
+    threshold: float = 0.7
+
+class MLSemanticSearchResponse(BaseModel):
+    query: str
+    results: List[dict]
+    total_results: int
