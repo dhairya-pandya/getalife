@@ -56,6 +56,22 @@ class InterestResponse(BaseModel):
     class Config:
         from_attributes = True
 
+# Community schemas
+class CommunityBase(BaseModel):
+    name: str
+    description: Optional[str] = None
+
+class CommunityCreate(CommunityBase):
+    pass
+
+class CommunityResponse(CommunityBase):
+    id: int
+    creator_id: int
+    created_at: datetime
+    
+    class Config:
+        from_attributes = True
+
 # Post and Comment schemas
 class CommentBase(BaseModel):
     content: str

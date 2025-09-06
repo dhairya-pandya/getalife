@@ -46,11 +46,23 @@ class SignupVerification(Base):
     failed_attempts = Column(Integer, default=0)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
+class Community(Base):
+    __tablename__ = "communities"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    name = Column(String, unique=True, index=True, nullable=False)
+    description = Column(String, nullable=True)
+    creator_id = Column(Integer, ForeignKey("users.id"))
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    
+    creator = relationship("User")
+    posts = relationship("Post", back_populates="community")
+
 class Post(Base):
     __tablename__ = "posts"
     id = Column(Integer, primary_key=True, index=True)
     author_id = Column(Integer, ForeignKey("users.id"))
-    community_id = Column(Integer, ForeignKey("communities.id"), nullable=True) # Assuming you have a communities table
+    community_id = Column(Integer, ForeignKey("communities.id"), nullable=True)
     title = Column(String, nullable=False)
     content = Column(String, nullable=False)
     dominant_emotion = Column(String, default='neutral')
@@ -62,6 +74,7 @@ class Post(Base):
     numberofcomments = Column(Integer, default=0) # Note: 'numberofcomments' is unconventional, 'comment_count' is more standard
 
     author = relationship("User")
+    community = relationship("Community", back_populates="posts")
     comments = relationship("Comment", back_populates="post", cascade="all, delete-orphan")
 
 class Comment(Base):

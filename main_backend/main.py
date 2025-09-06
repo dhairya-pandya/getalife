@@ -9,7 +9,7 @@ from jose import JWTError, jwt
 
 # Import your other modules
 import crud, models, schemas, auth
-from database import SessionLocal, engine
+from database import SessionLocal, engine, get_db
 from ml_client import ml_client
 
 # This line creates your database tables if they don't exist
@@ -28,12 +28,7 @@ app.add_middleware(
 )
 
 # --- DATABASE DEPENDENCY ---
-def get_db():
-    db = SessionLocal()
-    try:
-        yield db
-    finally:
-        db.close()
+# Note: get_db is now imported from database.py
 
 # --- JWT AND SECURITY SETUP ---
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="login")
@@ -122,7 +117,16 @@ def login(login_data: schemas.LoginRequest, db: Session = Depends(get_db)):
         raise HTTPException(status_code=401, detail="Incorrect email or password")
     
     access_token = auth.create_access_token(data={"sub": user.username})
-    user_response = schemas.UserResponse.from_orm(user) # Pydantic v2 can handle this with from_attributes
+    
+    # Manually build the user response for Pydantic v2 compatibility
+    user_response = schemas.UserResponse(
+        id=user.id,
+        username=user.username,
+        email=user.email,
+        interests=[interest.name for interest in user.interests],
+        created_at=user.created_at
+    )
+    
     return {"access_token": access_token, "token_type": "bearer", "user": user_response}
 
 # --- POSTS & COMMENTS ROUTES ---
@@ -353,29 +357,3 @@ async def process_existing_posts_for_search(db: Session = Depends(get_db)):
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to process existing posts: {str(e)}")
-# Add this to main.py, inside the AUTHENTICATION ROUTES section
-
-@app.post("/login", response_model=schemas.Token)
-def login(login_data: schemas.LoginRequest, db: Session = Depends(get_db)):
-    user = crud.get_user_by_email(db, email=login_data.email)
-    if not user or not auth.verify_password(login_data.password, user.hashed_password):
-        raise HTTPException(status_code=401, detail="Incorrect email or password")
-    
-    access_token = auth.create_access_token(data={"sub": user.username})
-
-    # --- KEY CHANGE: Manually build the user response ---
-    user_response = schemas.UserResponse(
-        id=user.id,
-        username=user.username,
-        email=user.email,
-        # Convert the list of Interest objects to a list of strings
-        interests=[interest.name for interest in user.interests],
-        created_at=user.created_at
-    )
-    
-    return {"access_token": access_token, "token_type": "bearer", "user": user_response}
-
-# Health check endpoint
-@app.get("/health")
-async def health_check():
-    return {"status": "healthy"}
