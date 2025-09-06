@@ -1,0 +1,44 @@
+
+fastapi==0.111.0 
+uvicorn[standard]==0.29.0
+
+pydantic==2.7.1
+
+sqlalchemy==2.0.23
+
+psycopg2-binary==2.9.9
+
+bcrypt==4.1.2
+
+passlib[bcrypt]==1.7.4
+
+email-validator==2.1.0
+
+python-dotenv==1.0.1
+
+httpx==0.27.0
+
+python-multipart==0.0.6
+
+tensorflow==2.15.0
+
+torch==2.1.0
+
+transformers==4.41.1
+
+sentence-transformers==2.7.0
+
+numpy==1.24.3
+
+
+chromadb==0.5.0
+
+pytest==7.4.3
+# Test coverage
+pytest-cov==4.1.0
+# HTTP testing for FastAPI
+httpx[test]==0.27.0
+
+gunicorn==21.2.0
+# Memory profiling
+psutil==5.9.6
