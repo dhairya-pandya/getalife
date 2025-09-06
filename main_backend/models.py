@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, Boolean, DateTime, ForeignKey, Table, Float
+from sqlalchemy import Column, Integer, String, Boolean, DateTime, ForeignKey, Table, Float, JSON
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 from database import Base
@@ -53,7 +53,9 @@ class Post(Base):
     community_id = Column(Integer, ForeignKey("communities.id"), nullable=True) # Assuming you have a communities table
     title = Column(String, nullable=False)
     content = Column(String, nullable=False)
-    sentiment = Column(String, default='neutral')
+    dominant_emotion = Column(String, default='neutral')
+    emotions = Column(JSON, default=list)  # Store full emotion analysis
+    emotion_confidence = Column(Float, default=0.0)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     upvotes = Column(Integer, default=0)
     downvotes = Column(Integer, default=0)
@@ -71,7 +73,9 @@ class Comment(Base):
     content = Column(String, nullable=False)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     toxicity_score = Column(Float, default=0.0)
-    sentiment = Column(String, default='neutral')
+    dominant_emotion = Column(String, default='neutral')
+    emotions = Column(JSON, default=list)  # Store full emotion analysis
+    emotion_confidence = Column(Float, default=0.0)
     is_flagged = Column(Boolean, default=False)
     upvotes = Column(Integer, default=0)
     downvotes = Column(Integer, default=0)

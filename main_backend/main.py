@@ -128,12 +128,12 @@ def login(login_data: schemas.LoginRequest, db: Session = Depends(get_db)):
 # --- POSTS & COMMENTS ROUTES ---
 
 @app.post("/posts/", response_model=schemas.PostResponse)
-def create_new_post(
+async def create_new_post(
     post: schemas.PostCreate,
     current_user: Annotated[models.User, Depends(get_current_user)],
     db: Session = Depends(get_db)
 ):
-    return crud.create_post(db=db, post=post, author_id=current_user.id)
+    return await crud.create_post(db=db, post=post, author_id=current_user.id)
 
 @app.get("/posts/", response_model=List[schemas.PostResponse])
 def read_posts(skip: int = 0, limit: int = 25, db: Session = Depends(get_db)):
@@ -148,14 +148,14 @@ def read_post(post_id: int, db: Session = Depends(get_db)):
     return db_post
 
 @app.post("/posts/{post_id}/comments/", response_model=schemas.CommentResponse)
-def create_new_comment(
+async def create_new_comment(
     post_id: int,
     comment: schemas.CommentCreate,
     current_user: Annotated[models.User, Depends(get_current_user)],
     parent_id: Optional[int] = None,
     db: Session = Depends(get_db)
 ):
-    return crud.create_comment(
+    return await crud.create_comment(
         db=db, comment=comment, post_id=post_id,
         author_id=current_user.id, parent_comment_id=parent_id
     )
@@ -237,6 +237,122 @@ async def analyze_emotions(request: schemas.MLEmotionRequest):
     if result is None:
         raise HTTPException(status_code=503, detail="ML emotion analysis service unavailable")
     return result
+
+@app.post("/ml/post-emotions", response_model=schemas.MLPostEmotionResponse)
+async def analyze_post_emotions(request: schemas.MLPostEmotionRequest):
+    """Analyze emotions of a single post using ML service"""
+    result = await ml_client.analyze_post_emotions(request)
+    if result is None:
+        raise HTTPException(status_code=503, detail="ML post emotion analysis service unavailable")
+    return result
+
+@app.post("/ml/discussion-emotions", response_model=schemas.MLDiscussionEmotionResponse)
+async def analyze_discussion_emotions(request: schemas.MLDiscussionEmotionRequest):
+    """Analyze emotions of entire discussion using ML service"""
+    result = await ml_client.analyze_discussion_emotions(request)
+    if result is None:
+        raise HTTPException(status_code=503, detail="ML discussion emotion analysis service unavailable")
+    return result
+
+@app.get("/posts/{post_id}/emotions", response_model=schemas.MLDiscussionEmotionResponse)
+async def get_post_emotion_analysis(post_id: int, db: Session = Depends(get_db)):
+    """Get detailed emotion analysis for a post and its discussion"""
+    result = await crud.get_discussion_emotion_analysis(db, post_id)
+    if result is None:
+        raise HTTPException(status_code=404, detail="Post not found or emotion analysis failed")
+    return result
+
+@app.put("/posts/{post_id}/update-emotions")
+async def update_post_emotions(post_id: int, db: Session = Depends(get_db)):
+    """Manually trigger emotion analysis update for a post"""
+    try:
+        await crud.update_discussion_emotions(db, post_id)
+        return {"message": f"Emotion analysis updated for post {post_id}"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to update emotions: {str(e)}")
+
+# --- SEMANTIC SEARCH ENDPOINTS (for Search Tab) ---
+
+@app.post("/search/semantic", response_model=dict)
+async def semantic_search_endpoint(
+    query: str,
+    limit: int = 10,
+    threshold: float = 0.7,
+    db: Session = Depends(get_db)
+):
+    """Semantic search for posts - used in search tab"""
+    try:
+        result = await crud.semantic_search_posts(db, query, limit, threshold)
+        return result
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Semantic search failed: {str(e)}")
+
+@app.get("/search/recommendations/{post_id}")
+async def get_post_recommendations(
+    post_id: int,
+    limit: int = 5,
+    threshold: float = 0.6,
+    db: Session = Depends(get_db)
+):
+    """Get recommended posts based on a specific post's content"""
+    try:
+        # Get the source post
+        source_post = crud.get_post(db, post_id)
+        if not source_post:
+            raise HTTPException(status_code=404, detail="Post not found")
+        
+        # Use the post content as query for semantic search
+        query = f"{source_post.title} {source_post.content}"
+        result = await crud.semantic_search_posts(db, query, limit + 1, threshold)  # +1 to exclude self
+        
+        # Remove the source post from results
+        filtered_results = [
+            r for r in result["results"] 
+            if r["post"].id != post_id
+        ][:limit]
+        
+        return {
+            "source_post_id": post_id,
+            "recommendations": filtered_results,
+            "total_recommendations": len(filtered_results)
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to get recommendations: {str(e)}")
+
+@app.post("/admin/process-existing-posts")
+async def process_existing_posts_for_search(db: Session = Depends(get_db)):
+    """Process existing posts to add them to semantic search index"""
+    try:
+        # Get all posts that don't have embeddings yet
+        posts = crud.get_posts(db, skip=0, limit=1000)  # Process in batches
+        processed = 0
+        failed = 0
+        
+        for post in posts:
+            try:
+                # Store embedding for semantic search
+                full_content = f"{post.title} {post.content}"
+                embedding_request = schemas.MLEmbeddingRequest(
+                    content_id=str(post.id),
+                    text=full_content
+                )
+                result = await ml_client.store_post_embedding(embedding_request)
+                if result:
+                    processed += 1
+                else:
+                    failed += 1
+            except Exception as e:
+                print(f"Failed to process post {post.id}: {e}")
+                failed += 1
+        
+        return {
+            "message": f"Processed {processed} posts successfully, {failed} failed",
+            "processed": processed,
+            "failed": failed,
+            "total": len(posts)
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to process existing posts: {str(e)}")
 # Add this to main.py, inside the AUTHENTICATION ROUTES section
 
 @app.post("/login", response_model=schemas.Token)
