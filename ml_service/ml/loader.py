@@ -90,6 +90,75 @@ def infer_emotions(text, threshold=0.3):
         
     return predicted_emotions
 
+def get_dominant_emotion(emotions):
+    """Get the dominant emotion and its confidence"""
+    if not emotions or emotions[0].get("error"):
+        return "neutral", 0.0
+    
+    # Return the emotion with highest probability
+    if emotions:
+        top_emotion = emotions[0]
+        return top_emotion.get('emotion', 'neutral'), float(top_emotion.get('probability', 0.0))
+
+def analyze_post_emotions(post_content, threshold=0.3):
+    """Analyze emotions of a single post"""
+    emotions = infer_emotions(post_content, threshold)
+    dominant_emotion, confidence = get_dominant_emotion(emotions)
+    return dominant_emotion, emotions, confidence
+
+def analyze_discussion_emotions(post_content, comments, threshold=0.3):
+    """Analyze emotions of entire discussion (post + comments)"""
+    # Analyze post
+    post_emotions = infer_emotions(post_content, threshold)
+    post_dominant, post_confidence = get_dominant_emotion(post_emotions)
+    
+    # Analyze comments
+    all_comment_emotions = []
+    comment_dominants = []
+    
+    for comment in comments:
+        if comment.strip():  # Skip empty comments
+            comment_emotions = infer_emotions(comment, threshold)
+            all_comment_emotions.extend(comment_emotions)
+            comment_dominant, _ = get_dominant_emotion(comment_emotions)
+            comment_dominants.append(comment_dominant)
+    
+    # Aggregate all emotions from post and comments
+    all_emotions = post_emotions + all_comment_emotions
+    
+    # Create emotion breakdown with average probabilities
+    emotion_breakdown = {}
+    for emotion in all_emotions:
+        emotion_name = emotion.get('emotion', '')
+        if emotion_name:
+            if emotion_name not in emotion_breakdown:
+                emotion_breakdown[emotion_name] = []
+            emotion_breakdown[emotion_name].append(float(emotion.get('probability', 0)))
+    
+    # Average the emotion probabilities
+    for emotion_name in emotion_breakdown:
+        emotion_breakdown[emotion_name] = round(
+            sum(emotion_breakdown[emotion_name]) / len(emotion_breakdown[emotion_name]), 2
+        )
+    
+    # Find overall dominant emotion
+    if emotion_breakdown:
+        overall_dominant = max(emotion_breakdown, key=emotion_breakdown.get)
+        overall_confidence = emotion_breakdown[overall_dominant]
+    else:
+        overall_dominant = "neutral"
+        overall_confidence = 0.0
+    
+    return {
+        'overall_dominant_emotion': overall_dominant,
+        'post_dominant_emotion': post_dominant,
+        'post_emotions': post_emotions,
+        'comment_emotions': all_comment_emotions,
+        'emotion_breakdown': emotion_breakdown,
+        'confidence': round(overall_confidence, 2),
+        'total_analyzed': 1 + len(comments)  # post + comments
+    }
+
 if __name__ == '__main__':
 
     load_models()
